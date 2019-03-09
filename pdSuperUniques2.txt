@@ -1,0 +1,68 @@
+Superunique	AreaId
+Bishibosh	3
+Bonebreak	18
+Coldcrow	9
+Rakanishu	4
+Treehead WoodFist	5
+Griswold	38
+The Countess	25
+Pitspawn Fouldog	30
+Flamespike the Crawler	32
+Boneash	33
+Radament	49
+Bloodwitch the Wild	60
+Fangskin	61
+Beetleburst	43
+Leatherarm	
+Coldworm the Burrower	64
+Fire Eye	54
+Dark Elder	44
+The Summoner	74
+Ancient Kaa the Soulless	66
+The Smith	28
+Web Mage the Burning	
+Witch Doctor Endugu	91
+Stormtree	79
+Sarina the Battlemaid	94
+Icehawk Riftwing	92
+Ismail Vilehand	83
+Geleb Flamefinger	83
+Bremm Sparkfist	102
+Toorc Icefist	83
+Wyand Voidfinger	102
+Maffer Dragonhand	102
+Winged Death	
+The Tormentor	
+Taintbreeder	
+Riftwraith the Cannibal	
+Infector of Souls	108
+Lord De Seis	108
+Grand Vizier of Chaos	108
+The Cow King	39
+Corpsefire	8
+The Feature Creep	
+Expansion	
+Siege Boss	110
+Ancient Barbarian 1	120
+Ancient Barbarian 2	120
+Ancient Barbarian 3	120
+Axe Dweller	
+Bonesaw Breaker	115
+Dac Farren	110
+Megaflow Rectifier	111
+Eyeback Unleashed	111
+Threash Socket	112
+Pindleskin	121
+Snapchip Shatter	119
+Anodized Elite	
+Vinvear Molech	
+Sharp Tooth Sayer	111
+Magma Torquer	
+Blaze Ripper	
+Frozenstein	114
+Nihlathak Boss	124
+Baal Subject 1	131
+Baal Subject 2	131
+Baal Subject 3	131
+Baal Subject 4	131
+Baal Subject 5	131
