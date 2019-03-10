@@ -124,6 +124,18 @@ class AnimData(object):
 
 class Character(object):
     animdata = AnimData('data2/animdata.txt')
+    # constants for interpreting json character data
+    ITEM_LOCATION_STORED = 0
+    ITEM_LOCATION_EQUIPPED = 1
+    ITEM_LOCATION_BELT = 2
+
+    ITEM_ALT_POSITION_INVENTORY = 1
+    ITEM_ALT_POSITION_CUBE = 4
+    ITEM_ALT_POSITION_STASH = 5
+
+    # this is a bit ugly, but we need to know if any item is a charm to determine
+    # if we should use the item or not
+    CHARM_ITEM_TYPES = ['cm1', 'cm2', 'cm3']
 
     # see http://www.mannm.org/d2library/faqtoids/animspeed.html#startframes
     startframes = {'HTH': 0,
@@ -146,6 +158,44 @@ class Character(object):
 
     #def equip(self, equipable):
     #    self.equipment.append(equipable)
+
+    def __init__(self, chardata):
+        self.chardata = chardata
+        self.character = chardata['character']
+        self.d2s = self.character['d2s']
+        self.header = self.d2s['header']
+        self.attributes = self.d2s['attributes']
+        self.skills = self.d2s['skills']
+        self.items = self.d2s['items']
+        self.corpse_items = self.d2s['corpse_items']
+        self.merc_items = self.d2s['merc_items']
+
+    def name(self):
+        return self.header['name']
+
+    def level(self):
+        return self.header['level']
+
+    @classmethod
+    def is_equipped(cls, item):
+        return item['location_id'] == cls.ITEM_LOCATION_EQUIPPED
+
+    @classmethod
+    def in_inventory(cls, item):
+        return item['location_id'] == cls.ITEM_LOCATION_STORED and item['alt_position_id'] == cls.ITEM_ALT_POSITION_INVENTORY
+
+    @classmethod
+    def is_charm(cls, item):
+        return item['type'] in cls.CHARM_ITEM_TYPES
+
+    @classmethod
+    def use_item(cls, item):
+        return cls.is_equipped(item) or cls.in_inventory(item) and cls.is_charm(item)
+
+    #def deadly_strike(self):
+    #    for item in self.items:
+    #        if self.use_item(item):
+
 
     @classmethod
     def get_char_animdata(cls, AnimName, wtype):
@@ -358,7 +408,7 @@ def create_from_slash(char_name):
         logger.error("Problem accessing character data. JSON dump: {}".format(chardata))
         raise RuntimeError("Bad character data. Top level keys: {}".format(chardata.keys())) from e
     logger.debug("{} is a {}".format(char_name, charclass))
-    return SLASH_CLASS_MAP[charclass]
+    return SLASH_CLASS_MAP[charclass](chardata)
 
 
 
@@ -367,6 +417,7 @@ NORMAL = ''
 NIGHTMARE = 'N'
 HELL = 'H'
 
+# TODO: Move these to class level constants
 # mlvl bonuses (can't find these in data files)
 SUPER_UNIQUE_MONSTER_MLVL_BONUS = 3
 UNIQUE_MONSTER_MLVL_BONUS = 3
@@ -553,11 +604,11 @@ class Monster(object):
         if rand:
             life = np.random.randint(*self.base_hp())
         else:
-            life = sum(self.base_hp())/2
-        return life*(100+(self.player_count-1)*HP_BOOST_PER_PLAYER)/100
+            life = sum(self.base_hp())//2
+        return life*(100+(self.player_count-1)*HP_BOOST_PER_PLAYER)//100
 
     def experience(self):
-        return self.base_experience()*(100+(self.player_count-1)*EXP_BOOST_PER_PLAYER)/100
+        return self.base_experience()*(100+(self.player_count-1)*EXP_BOOST_PER_PLAYER)//100
 
     #def apply_curse(self, curse):
         #self.curse.disable()
@@ -640,12 +691,12 @@ class Monster(object):
         else:
             #mlvl = cls.mlvl()
             base = cls.monlvl.get_data(cls.mlvl, cls.STATMAP[stat]+cls.difficulty)
-            return base*ratio/100
+            return base*ratio//100
 
     @classmethod
     def base_hp(cls):
         stat_strs = ('minHP', 'maxHP') if cls.difficulty==NORMAL else ('MinHP', 'MaxHP')
-        return tuple(map(lambda s: cls.ratioed_stat(s)*(100+cls.hp_bonus())/100, stat_strs))
+        return tuple(map(lambda s: cls.ratioed_stat(s)*(100+cls.hp_bonus())//100, stat_strs))
 
     @classmethod
     def hp_bonus(cls):
