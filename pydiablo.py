@@ -123,7 +123,7 @@ class AnimData(object):
         return self.animdata_dict[key]
 
 class Character(object):
-    animdata = AnimData('animdata.txt')
+    animdata = AnimData('data2/animdata.txt')
 
     # see http://www.mannm.org/d2library/faqtoids/animspeed.html#startframes
     startframes = {'HTH': 0,
@@ -531,7 +531,7 @@ class Monster(object):
     monlvl = MonLvl('data/global/excel/MonLvl.txt')
     monprop = MonProp('data/global/excel/MonProp.txt')
     superuniques = SuperUniques('data/global/excel/SuperUniques.txt')
-    superuniques2 = SuperUniques('pdSuperUniques2.txt')
+    superuniques2 = SuperUniques('data2/SuperUniques2.txt')
     levels = Levels('data/global/excel/Levels.txt', monstats, superuniques, superuniques2)
     mumod_const = MonUModConstants('data/global/excel/monumod.txt')
     # map monstats stats to monlvl stats, assuming ladder or single player
