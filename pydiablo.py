@@ -18,6 +18,19 @@ ch.setFormatter(formatter)
 logger.addHandler(fh)
 logger.addHandler(ch)
 
+class D2Data(object):
+    @staticmethod
+    def filling_values():
+        return None
+
+    def __init__(self, filename, key, usecols=None):
+        self.data = np.genfromtxt(filename, delimiter='\t', names=True, dtype=None,
+                                  filling_values=self.filling_values(), usecols=usecols, encoding=None)
+        self.idx = dict(zip(self.data[key], range(len(self.data[key]))))
+
+    def get_data(self, key, col):
+        return self.data[col][self.idx[key]]
+
 
 def eias(ias):
     return np.floor(120. * (ias) / (120 + (ias))).astype(int)
@@ -124,6 +137,8 @@ class AnimData(object):
 
 class Character(object):
     animdata = AnimData('data2/animdata.txt')
+    #item_stat_cost = D2Data('data/global/excel/ItemStatCost.txt', 'Stat')
+
     # constants for interpreting json character data
     ITEM_LOCATION_STORED = 0
     ITEM_LOCATION_EQUIPPED = 1
@@ -132,6 +147,11 @@ class Character(object):
     ITEM_ALT_POSITION_INVENTORY = 1
     ITEM_ALT_POSITION_CUBE = 4
     ITEM_ALT_POSITION_STASH = 5
+
+    ITEM_EQUIPPED_ID_RIGHT_HAND = 4
+    ITEM_EQUIPPED_ID_LEFT_HAND = 5
+
+    ITEM_TYPE_ID_WEAPON = 3
 
     # this is a bit ugly, but we need to know if any item is a charm to determine
     # if we should use the item or not
@@ -169,6 +189,7 @@ class Character(object):
         self.items = self.d2s['items']
         self.corpse_items = self.d2s['corpse_items']
         self.merc_items = self.d2s['merc_items']
+        self.build_stat_maps()
 
     def name(self):
         return self.header['name']
@@ -178,23 +199,153 @@ class Character(object):
 
     @classmethod
     def is_equipped(cls, item):
+        """Returns true if the given item is equipped."""
         return item['location_id'] == cls.ITEM_LOCATION_EQUIPPED
 
     @classmethod
+    def is_weapon(cls, item):
+        return item['type_id'] == cls.ITEM_TYPE_ID_WEAPON
+
+    @classmethod
+    def is_right_hand_weapon(cls, item):
+        """Returns true if the item is a weapon and is equipped in the right hand (above glove slot)."""
+        return cls.is_equipped(item) and item['equipped_id'] == cls.ITEM_EQUIPPED_ID_RIGHT_HAND and cls.is_weapon(item)
+
+    @classmethod
+    def is_left_hand_weapon(cls, item):
+        """Returns true if the item is a weapon and is equipped in the left hand (above boots)."""
+        return cls.is_equipped(item) and item['equipped_id'] == cls.ITEM_EQUIPPED_ID_LEFT_HAND and cls.is_weapon(item)
+
+    #@classmethod
+    #def is_primary_weapon(cls, item):
+    #    """Returns true if this item is the primary weapon."""
+    #    return
+
+    @classmethod
     def in_inventory(cls, item):
+        """Returns true if the given item is in the player's inventory."""
         return item['location_id'] == cls.ITEM_LOCATION_STORED and item['alt_position_id'] == cls.ITEM_ALT_POSITION_INVENTORY
 
     @classmethod
     def is_charm(cls, item):
+        """Returns true if the given item is a charm."""
         return item['type'] in cls.CHARM_ITEM_TYPES
 
     @classmethod
     def use_item(cls, item):
+        """Returns true if the item is used by the player, i.e., equipped or a charm."""
         return cls.is_equipped(item) or cls.in_inventory(item) and cls.is_charm(item)
 
+    def get_active_items(self):
+        """Return a list of the active items, i.e., those that are equipped or charms."""
+        active_items = []
+        for item in self.items:
+            if self.use_item(item):
+                active_items.append(item)
+        return active_items
+
+    def get_primary_weapon(self):
+        """Return the primary weapon."""
+        left_hand_weapon = None
+        for item in self.get_active_items():
+            if self.is_right_hand_weapon(item):
+                # if the item is in the right hand, then we don't need to look anymore,
+                # it is the primary weapon
+                return item
+            elif self.is_left_hand_weapon(item):
+                left_hand_weapon = item
+        # if there was no right hand weapon found, then we return the left hand weapon,
+        # which will be None if there was no left hand weapon
+        return left_hand_weapon
+
+    def get_secondary_weapon(self):
+        """Return the secondary weapon."""
+        right_hand_weapon = None
+        left_hand_weapon = None
+        for item in self.get_active_items():
+            if self.is_right_hand_weapon(item):
+                right_hand_weapon = item
+            elif self.is_left_hand_weapon(item):
+                left_hand_weapon = item
+            if right_hand_weapon is not None and left_hand_weapon is not None:
+                # as soon as we find two weapons, we can return the one in the left hand
+                return left_hand_weapon
+        # get here if we did not find two weapons, in which case there is no secondary
+        return None
+
+    def get_active_non_weapons(self):
+        """Return a list of non-weapon active items."""
+        items = []
+        for item in self.get_active_items():
+            if not self.is_right_hand_weapon(item) and not self.is_left_hand_weapon(item):
+                items.append(item)
+        return items
+
+    @staticmethod
+    def process_attributes(stat_map, item, attr_name):
+        """Add the named attributes from the item to the stat map."""
+        if attr_name in item and item[attr_name] is not None:
+            #if item['magic_attributes'] is None: print(item)
+            for stat in item[attr_name]:
+                # first handle some special cases where the d2s parser
+                # combined some stats into ranges.
+                if stat['id'] in [17, 48, 50, 52, 54, 57]:
+                    for i, value in enumerate(stat['values']):
+                        if stat['id']+i not in stat_map:
+                            stat_map[stat['id']+i] = []
+                        stat_map[stat['id']+i].append(value)
+                    continue
+
+                # next deal with the properties giving charges. just ignore these
+                # for now.
+                if stat['id'] in range(204,214):
+                    continue
+
+                # next handle the general case. when parameters are present,
+                # these are added as keys to inner dictionaries
+                mdict = stat_map
+                mkey = stat['id']
+                for value in stat['values'][:-1][::-1]:
+                    if mkey not in mdict:
+                        mdict[mkey] = {}
+                    mdict = mdict[mkey]
+                    mkey = value
+                if mkey not in mdict:
+                    mdict[mkey] = []
+                mdict[mkey].append(stat['values'][-1])
+
+    @classmethod
+    def build_stat_map(cls, stat_map, *items):
+        for item in items:
+            if item is None: continue
+            cls.process_attributes(stat_map, item, 'magic_attributes')
+            cls.process_attributes(stat_map, item, 'runeword_attributes')
+            if 'socketed_items' in item and item['socketed_items'] is not None:
+                for socketed_item in item['socketed_items']:
+                    cls.process_attributes(stat_map, socketed_item, 'magic_attributes')
+
+    def build_stat_maps(self):
+        """Construct the stat maps that will be used to perform O(1) lookup per stat."""
+        self.primary_weapon_modifiers = {}
+        self.secondary_weapon_modifiers = {}
+        self.off_weapon_modifiers = {}
+        self.build_stat_map(self.primary_weapon_modifiers, self.get_primary_weapon())
+        self.build_stat_map(self.secondary_weapon_modifiers, self.get_secondary_weapon())
+        self.build_stat_map(self.off_weapon_modifiers, *self.get_active_non_weapons())
+
+    # TODO: Best way to do this is probably to build a map of stat ids (itemstatcost.txt) to a list of values.
+    # We can do this once in the constructor, then we don't have to search through all the items every time.
     #def deadly_strike(self):
-    #    for item in self.items:
-    #        if self.use_item(item):
+    #    """Return character's total effective deadly strike as a percentage."""
+    #    deadly_strike = 0
+    #    for item in self.get_active_items():
+    #        if 'magic_attributes' not in item: continue
+    #        for stat in item['magic_attributes']:
+    #            if stat['id'] == 141:
+    #                deadly_strike += stat['values'][0]
+    #            elif stat['id'] == 250:
+    #                deadly_strike += stat['values'][0]*self.level()//8
+    #    return deadly_strike
 
 
     @classmethod
@@ -396,20 +547,27 @@ SLASH_CLASS_MAP = {'Sorceress': Sorceress,
                    'Necromancer': Necromancer,
                    'Paladin': Paladin}
 
-def create_from_slash(char_name):
+def chardata_from_slash(char_name):
     try:
         contents = urllib.request.urlopen(SLASH_URL.format(char_name)).read()
     except urllib.error.HTTPError as e:
         raise RuntimeError("Could not find character {}. Armory down or missing character.".format(char_name)) from e
-    chardata = json.loads(contents)
+    return json.loads(contents)
+
+def create_from_json(chardata):
     try:
         charclass = chardata['character']['d2s']['header']['class']
+        char_name = chardata['character']['d2s']['header']['name']
     except KeyError as e:
         logger.error("Problem accessing character data. JSON dump: {}".format(chardata))
         raise RuntimeError("Bad character data. Top level keys: {}".format(chardata.keys())) from e
     logger.debug("{} is a {}".format(char_name, charclass))
     return SLASH_CLASS_MAP[charclass](chardata)
 
+
+def create_from_slash(char_name):
+    chardata = chardata_from_slash(char_name)
+    return create_from_json(chardata)
 
 
 # This should probably be an enum, but it's more convenient this way
@@ -436,19 +594,6 @@ HP_BOOST_PER_PLAYER = 50
 # damage bonuses (apply only in nightmare and hell)
 DMG_BOOST_PER_PLAYER = 6.25
 # TODO: Damage boosts not yet implemented
-
-class D2Data(object):
-    @staticmethod
-    def filling_values():
-        return None
-
-    def __init__(self, filename, key, usecols=None):
-        self.data = np.genfromtxt(filename, delimiter='\t', names=True, dtype=None,
-                                  filling_values=self.filling_values(), usecols=usecols, encoding=None)
-        self.idx = dict(zip(self.data[key], range(len(self.data[key]))))
-
-    def get_data(self, key, col):
-        return self.data[col][self.idx[key]]
 
 class Monstats(D2Data):
     @staticmethod
