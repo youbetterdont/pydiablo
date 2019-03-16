@@ -135,10 +135,7 @@ class AnimData(object):
     def get_data(self, key):
         return self.animdata_dict[key]
 
-class Character(object):
-    animdata = AnimData('data2/animdata.txt')
-    #item_stat_cost = D2Data('data/global/excel/ItemStatCost.txt', 'Stat')
-
+class Item(object):
     # constants for interpreting json character data
     ITEM_LOCATION_STORED = 0
     ITEM_LOCATION_EQUIPPED = 1
@@ -157,133 +154,49 @@ class Character(object):
     # if we should use the item or not
     CHARM_ITEM_TYPES = ['cm1', 'cm2', 'cm3']
 
-    # see http://www.mannm.org/d2library/faqtoids/animspeed.html#startframes
-    startframes = {'HTH': 0,
-                   'BOW': 0,
-                   '1HS': 0,
-                   '1HT': 0,
-                   'STF': 0,
-                   '2HS': 0,
-                   '2HT': 0,
-                   'XBW': 0}
+    def __init__(self, itemdata):
+        self.item = itemdata
 
-    aidelay = 0
-
-    #def __init__(self):
-    #    self.weapon = None #HandToHand()
-    #    self.equipment = []
-
-    #def equip_weapon(self, weapon):
-    #    self.weapon = weapon
-
-    #def equip(self, equipable):
-    #    self.equipment.append(equipable)
-
-    def __init__(self, chardata):
-        self.chardata = chardata
-        self.character = chardata['character']
-        self.d2s = self.character['d2s']
-        self.header = self.d2s['header']
-        self.attributes = self.d2s['attributes']
-        self.skills = self.d2s['skills']
-        self.items = self.d2s['items']
-        self.corpse_items = self.d2s['corpse_items']
-        self.merc_items = self.d2s['merc_items']
-        self.build_stat_maps()
-
-    def name(self):
-        return self.header['name']
-
-    def level(self):
-        return self.header['level']
-
-    @classmethod
-    def is_equipped(cls, item):
+    def is_equipped(self):
         """Returns true if the given item is equipped."""
-        return item['location_id'] == cls.ITEM_LOCATION_EQUIPPED
+        return self.item['location_id'] == self.ITEM_LOCATION_EQUIPPED
 
-    @classmethod
-    def is_weapon(cls, item):
-        return item['type_id'] == cls.ITEM_TYPE_ID_WEAPON
+    def is_weapon(self):
+        return self.item['type_id'] == self.ITEM_TYPE_ID_WEAPON
 
-    @classmethod
-    def is_right_hand_weapon(cls, item):
+    def is_right_hand_weapon(self):
         """Returns true if the item is a weapon and is equipped in the right hand (above glove slot)."""
-        return cls.is_equipped(item) and item['equipped_id'] == cls.ITEM_EQUIPPED_ID_RIGHT_HAND and cls.is_weapon(item)
+        return self.is_equipped() and self.item['equipped_id'] == self.ITEM_EQUIPPED_ID_RIGHT_HAND and self.is_weapon()
 
-    @classmethod
-    def is_left_hand_weapon(cls, item):
+    def is_left_hand_weapon(self):
         """Returns true if the item is a weapon and is equipped in the left hand (above boots)."""
-        return cls.is_equipped(item) and item['equipped_id'] == cls.ITEM_EQUIPPED_ID_LEFT_HAND and cls.is_weapon(item)
+        return self.is_equipped() and self.item['equipped_id'] == self.ITEM_EQUIPPED_ID_LEFT_HAND and self.is_weapon()
 
     #@classmethod
     #def is_primary_weapon(cls, item):
     #    """Returns true if this item is the primary weapon."""
     #    return
 
-    @classmethod
-    def in_inventory(cls, item):
+    def in_inventory(self):
         """Returns true if the given item is in the player's inventory."""
-        return item['location_id'] == cls.ITEM_LOCATION_STORED and item['alt_position_id'] == cls.ITEM_ALT_POSITION_INVENTORY
+        return self.item['location_id'] == self.ITEM_LOCATION_STORED and self.item['alt_position_id'] == self.ITEM_ALT_POSITION_INVENTORY
 
-    @classmethod
-    def is_charm(cls, item):
+    def is_charm(self):
         """Returns true if the given item is a charm."""
-        return item['type'] in cls.CHARM_ITEM_TYPES
+        return self.item['type'] in self.CHARM_ITEM_TYPES
 
-    @classmethod
-    def use_item(cls, item):
+    def use_item(self):
         """Returns true if the item is used by the player, i.e., equipped or a charm."""
-        return cls.is_equipped(item) or cls.in_inventory(item) and cls.is_charm(item)
+        return self.is_equipped() or self.in_inventory() and self.is_charm()
 
-    def get_active_items(self):
-        """Return a list of the active items, i.e., those that are equipped or charms."""
-        active_items = []
-        for item in self.items:
-            if self.use_item(item):
-                active_items.append(item)
-        return active_items
+    def get_socketed_items(self):
+        if 'socketed_items' in self.item and self.item['socketed_items'] is not None:
+            return [Item(itemdata) for itemdata in self.item['socketed_items']]
+        return []
 
-    def get_primary_weapon(self):
-        """Return the primary weapon."""
-        left_hand_weapon = None
-        for item in self.get_active_items():
-            if self.is_right_hand_weapon(item):
-                # if the item is in the right hand, then we don't need to look anymore,
-                # it is the primary weapon
-                return item
-            elif self.is_left_hand_weapon(item):
-                left_hand_weapon = item
-        # if there was no right hand weapon found, then we return the left hand weapon,
-        # which will be None if there was no left hand weapon
-        return left_hand_weapon
-
-    def get_secondary_weapon(self):
-        """Return the secondary weapon."""
-        right_hand_weapon = None
-        left_hand_weapon = None
-        for item in self.get_active_items():
-            if self.is_right_hand_weapon(item):
-                right_hand_weapon = item
-            elif self.is_left_hand_weapon(item):
-                left_hand_weapon = item
-            if right_hand_weapon is not None and left_hand_weapon is not None:
-                # as soon as we find two weapons, we can return the one in the left hand
-                return left_hand_weapon
-        # get here if we did not find two weapons, in which case there is no secondary
-        return None
-
-    def get_active_non_weapons(self):
-        """Return a list of non-weapon active items."""
-        items = []
-        for item in self.get_active_items():
-            if not self.is_right_hand_weapon(item) and not self.is_left_hand_weapon(item):
-                items.append(item)
-        return items
-
-    @staticmethod
-    def process_attributes(stat_map, item, attr_name):
+    def add_attributes_to_map(self, stat_map, attr_name):
         """Add the named attributes from the item to the stat map."""
+        item = self.item
         if attr_name in item and item[attr_name] is not None:
             #if item['magic_attributes'] is None: print(item)
             for stat in item[attr_name]:
@@ -314,15 +227,104 @@ class Character(object):
                     mdict[mkey] = []
                 mdict[mkey].append(stat['values'][-1])
 
-    @classmethod
-    def build_stat_map(cls, stat_map, *items):
+
+class Character(object):
+    animdata = AnimData('data2/animdata.txt')
+    #item_stat_cost = D2Data('data/global/excel/ItemStatCost.txt', 'Stat')
+
+    # see http://www.mannm.org/d2library/faqtoids/animspeed.html#startframes
+    startframes = {'HTH': 0,
+                   'BOW': 0,
+                   '1HS': 0,
+                   '1HT': 0,
+                   'STF': 0,
+                   '2HS': 0,
+                   '2HT': 0,
+                   'XBW': 0}
+
+    aidelay = 0
+
+    #def __init__(self):
+    #    self.weapon = None #HandToHand()
+    #    self.equipment = []
+
+    #def equip_weapon(self, weapon):
+    #    self.weapon = weapon
+
+    #def equip(self, equipable):
+    #    self.equipment.append(equipable)
+
+    def __init__(self, chardata):
+        self.chardata = chardata
+        self.character = chardata['character']
+        self.d2s = self.character['d2s']
+        self.header = self.d2s['header']
+        self.attributes = self.d2s['attributes']
+        self.skills = self.d2s['skills']
+        self.items = [Item(itemdata) for itemdata in self.d2s['items']]
+        self.corpse_items = self.d2s['corpse_items']
+        self.merc_items = self.d2s['merc_items']
+        self.build_stat_maps()
+
+    def name(self):
+        return self.header['name']
+
+    def level(self):
+        return self.header['level']
+
+    def get_active_items(self):
+        """Return a list of the active items, i.e., those that are equipped or charms."""
+        active_items = []
+        for item in self.items:
+            if item.use_item():
+                active_items.append(item)
+        return active_items
+
+    def get_primary_weapon(self):
+        """Return the primary weapon."""
+        left_hand_weapon = None
+        for item in self.get_active_items():
+            if item.is_right_hand_weapon():
+                # if the item is in the right hand, then we don't need to look anymore,
+                # it is the primary weapon
+                return item
+            elif item.is_left_hand_weapon():
+                left_hand_weapon = item
+        # if there was no right hand weapon found, then we return the left hand weapon,
+        # which will be None if there was no left hand weapon
+        return left_hand_weapon
+
+    def get_secondary_weapon(self):
+        """Return the secondary weapon."""
+        right_hand_weapon = None
+        left_hand_weapon = None
+        for item in self.get_active_items():
+            if item.is_right_hand_weapon():
+                right_hand_weapon = item
+            elif item.is_left_hand_weapon():
+                left_hand_weapon = item
+            if right_hand_weapon is not None and left_hand_weapon is not None:
+                # as soon as we find two weapons, we can return the one in the left hand
+                return left_hand_weapon
+        # get here if we did not find two weapons, in which case there is no secondary
+        return None
+
+    def get_active_non_weapons(self):
+        """Return a list of non-weapon active items."""
+        items = []
+        for item in self.get_active_items():
+            if not item.is_right_hand_weapon() and not item.is_left_hand_weapon():
+                items.append(item)
+        return items
+
+    @staticmethod
+    def build_stat_map(stat_map, *items):
         for item in items:
             if item is None: continue
-            cls.process_attributes(stat_map, item, 'magic_attributes')
-            cls.process_attributes(stat_map, item, 'runeword_attributes')
-            if 'socketed_items' in item and item['socketed_items'] is not None:
-                for socketed_item in item['socketed_items']:
-                    cls.process_attributes(stat_map, socketed_item, 'magic_attributes')
+            item.add_attributes_to_map(stat_map, 'magic_attributes')
+            item.add_attributes_to_map(stat_map, 'runeword_attributes')
+            for socketed_item in item.get_socketed_items():
+                socketed_item.add_attributes_to_map(stat_map, 'magic_attributes')
 
     def build_stat_maps(self):
         """Construct the stat maps that will be used to perform O(1) lookup per stat."""
