@@ -194,55 +194,21 @@ class Item(object):
             return [Item(itemdata) for itemdata in self.item['socketed_items']]
         return []
 
-    def add_attributes_to_map(self, stat_map, attr_name):
-        """Add the named attributes from the item to the stat map."""
-        item = self.item
-        if attr_name in item and item[attr_name] is not None:
-            #if item['magic_attributes'] is None: print(item)
-            for stat in item[attr_name]:
-                # first handle some special cases where the d2s parser
-                # combined some stats into ranges.
-                if stat['id'] in [17, 48, 50, 52, 54, 57]:
-                    for i, value in enumerate(stat['values']):
-                        if stat['id']+i not in stat_map:
-                            stat_map[stat['id']+i] = []
-                        stat_map[stat['id']+i].append(value)
-                    continue
+    def attributes(self, attr_name):
+        """Return an iterator for attributes associated with attr_name."""
+        if attr_name in self.item and self.item[attr_name] is not None:
+            for stat in self.item[attr_name]:
+                yield stat
 
-                # next deal with the properties giving charges.
-                if stat['id'] in range(204,214):
-                    # override the stat reference to point to a new dict that we will
-                    # modify so that charges fits in better to our scheme. We recombine
-                    # the current and maximum charges into one number.
-                    new_stat = {}
-                    new_stat['id'] = stat['id']
-                    try:
-                        # MSB is maximum charges, LSB is current charges
-                        new_stat['values'] = [stat['values'][0], stat['values'][1],
-                                              stat['values'][2] + 2**8*stat['values'][3]]
-                    except IndexError as e:
-                        logger.error("Unexpected values field in item charges attribute. JSON dump: {}".format(stat))
-                        continue
-                    stat = new_stat
-
-                # next handle the general case. when parameters are present,
-                # these are added as keys to inner dictionaries
-                mdict = stat_map
-                mkey = stat['id']
-                for value in stat['values'][:-1][::-1]:
-                    if mkey not in mdict:
-                        mdict[mkey] = {}
-                    mdict = mdict[mkey]
-                    mkey = value
-                if mkey not in mdict:
-                    mdict[mkey] = []
-                mdict[mkey].append(stat['values'][-1])
-
-    def add_modifiers_to_map(self, stat_map):
-        self.add_attributes_to_map(stat_map, 'magic_attributes')
-        self.add_attributes_to_map(stat_map, 'runeword_attributes')
+    def non_set_attributes(self):
+        """Return an iterator for all non-set item attributes."""
+        for attribute in self.attributes('magic_attributes'):
+            yield attribute
+        for attribute in self.attributes('runeword_attributes'):
+            yield attribute
         for socketed_item in self.get_socketed_items():
-            socketed_item.add_attributes_to_map(stat_map, 'magic_attributes')
+            for attribute in socketed_item.attributes('magic_attributes'):
+                yield attribute
 
 
 class Character(object):
@@ -334,17 +300,91 @@ class Character(object):
                 items.append(item)
         return items
 
+    @staticmethod
+    def add_attributes_to_map(attr_iterator, stat_map):
+        """Add attributes from the item to the stat map.
+
+        Positional arguments:
+        attr_iterator -- an iterator for the item attributes.
+        stat_map -- add stats to this map
+
+        First, some terminology. Nokka's d2s parser gives 'attributes' for the items.
+        These 'attributes' are not quite consistent with the 'stats' in ItemStatCost.txt.
+        When referring to the stat as it exists in the JSON from the d2s parser, I will
+        use the term 'attribute'. When referring to a stat consistent with ItemStatCost.txt,
+        I will use the term 'stat'.
+
+        attr_iterator must yield a map with an id and values field and can
+        be created with the generator methods in the Item class. These maps are
+        expected to follow the format of nokka's d2s parser. When converting from
+        attribute to stat, we fix some inconsistencies, notably with combined stat ranges
+        (min-max dmg) and with charges.
+
+        The stat_map will contain all item stats, keyed by stat id (ItemStatCost.txt).
+        In the case of a simple stat (one value), the value for the stat id
+        will be a list of all instance values of that stat. In the case of a complex
+        stat, the value for the stat id will be another map, keyed by parameter.
+
+        simple attribute:
+        > stat_map[141] # deadly strike
+        [20]
+
+        complex attribute:
+        > stat_map[204][62][30] # level 30 (30) hydra (62) charges (204 is the stat id)
+        [2570]
+        The game stores the current and max charges as one 16 bit value. In this case,
+        there are 10 current charges (LSB) and 10 max (MSB): 2570 = 0x0A0A.
+        """
+        for attr in attr_iterator:
+            # first handle some special cases where the d2s parser
+            # combined some stats into ranges.
+            if attr['id'] in [17, 48, 50, 52, 54, 57]:
+                for i, value in enumerate(attr['values']):
+                    if attr['id']+i not in stat_map:
+                        stat_map[attr['id']+i] = []
+                    stat_map[attr['id']+i].append(value)
+                continue
+
+            # next deal with the properties giving charges.
+            if attr['id'] in range(204,214):
+                # override the stat reference to point to a new dict that we will
+                # modify so that charges fits in better to our scheme. We recombine
+                # the current and maximum charges into one number.
+                new_attr = {}
+                new_attr['id'] = attr['id']
+                try:
+                    # MSB is maximum charges, LSB is current charges
+                    new_attr['values'] = [attr['values'][0], attr['values'][1],
+                                          attr['values'][2] + 2**8*attr['values'][3]]
+                except IndexError as e:
+                    logger.error("Unexpected values field in item charges attribute. JSON dump: {}".format(attr))
+                    continue
+                attr = new_attr
+
+            # next handle the general case. when parameters are present,
+            # these are added as keys to inner dictionaries
+            mdict = stat_map
+            mkey = attr['id']
+            for value in attr['values'][:-1][::-1]:
+                if mkey not in mdict:
+                    mdict[mkey] = {}
+                mdict = mdict[mkey]
+                mkey = value
+            if mkey not in mdict:
+                mdict[mkey] = []
+            mdict[mkey].append(attr['values'][-1])
+
     def build_stat_maps(self):
         """Construct the stat maps that will be used to perform O(1) lookup per stat."""
-        self.primary_weapon_modifiers = {}
-        self.secondary_weapon_modifiers = {}
-        self.off_weapon_modifiers = {}
+        self.primary_weapon_stats = {}
+        self.secondary_weapon_stats = {}
+        self.off_weapon_stats = {}
         for item in [self.get_primary_weapon()]:
-            if item is not None: item.add_modifiers_to_map(self.primary_weapon_modifiers)
+            if item is not None: self.add_attributes_to_map(item.non_set_attributes(), self.primary_weapon_stats)
         for item in [self.get_secondary_weapon()]:
-            if item is not None: item.add_modifiers_to_map(self.secondary_weapon_modifiers)
+            if item is not None: self.add_attributes_to_map(item.non_set_attributes(), self.secondary_weapon_stats)
         for item in self.get_active_non_weapons():
-            if item is not None: item.add_modifiers_to_map(self.off_weapon_modifiers)
+            if item is not None: self.add_attributes_to_map(item.non_set_attributes(), self.off_weapon_stats)
 
     # TODO: Best way to do this is probably to build a map of stat ids (itemstatcost.txt) to a list of values.
     # We can do this once in the constructor, then we don't have to search through all the items every time.
