@@ -209,10 +209,21 @@ class Item(object):
                         stat_map[stat['id']+i].append(value)
                     continue
 
-                # next deal with the properties giving charges. just ignore these
-                # for now.
+                # next deal with the properties giving charges.
                 if stat['id'] in range(204,214):
-                    continue
+                    # override the stat reference to point to a new dict that we will
+                    # modify so that charges fits in better to our scheme. We recombine
+                    # the current and maximum charges into one number.
+                    new_stat = {}
+                    new_stat['id'] = stat['id']
+                    try:
+                        # MSB is maximum charges, LSB is current charges
+                        new_stat['values'] = [stat['values'][0], stat['values'][1],
+                                              stat['values'][2] + 2**8*stat['values'][3]]
+                    except IndexError as e:
+                        logger.error("Unexpected values field in item charges attribute. JSON dump: {}".format(stat))
+                        continue
+                    stat = new_stat
 
                 # next handle the general case. when parameters are present,
                 # these are added as keys to inner dictionaries
@@ -226,6 +237,12 @@ class Item(object):
                 if mkey not in mdict:
                     mdict[mkey] = []
                 mdict[mkey].append(stat['values'][-1])
+
+    def add_modifiers_to_map(self, stat_map):
+        self.add_attributes_to_map(stat_map, 'magic_attributes')
+        self.add_attributes_to_map(stat_map, 'runeword_attributes')
+        for socketed_item in self.get_socketed_items():
+            socketed_item.add_attributes_to_map(stat_map, 'magic_attributes')
 
 
 class Character(object):
@@ -317,23 +334,17 @@ class Character(object):
                 items.append(item)
         return items
 
-    @staticmethod
-    def build_stat_map(stat_map, *items):
-        for item in items:
-            if item is None: continue
-            item.add_attributes_to_map(stat_map, 'magic_attributes')
-            item.add_attributes_to_map(stat_map, 'runeword_attributes')
-            for socketed_item in item.get_socketed_items():
-                socketed_item.add_attributes_to_map(stat_map, 'magic_attributes')
-
     def build_stat_maps(self):
         """Construct the stat maps that will be used to perform O(1) lookup per stat."""
         self.primary_weapon_modifiers = {}
         self.secondary_weapon_modifiers = {}
         self.off_weapon_modifiers = {}
-        self.build_stat_map(self.primary_weapon_modifiers, self.get_primary_weapon())
-        self.build_stat_map(self.secondary_weapon_modifiers, self.get_secondary_weapon())
-        self.build_stat_map(self.off_weapon_modifiers, *self.get_active_non_weapons())
+        for item in [self.get_primary_weapon()]:
+            if item is not None: item.add_modifiers_to_map(self.primary_weapon_modifiers)
+        for item in [self.get_secondary_weapon()]:
+            if item is not None: item.add_modifiers_to_map(self.secondary_weapon_modifiers)
+        for item in self.get_active_non_weapons():
+            if item is not None: item.add_modifiers_to_map(self.off_weapon_modifiers)
 
     # TODO: Best way to do this is probably to build a map of stat ids (itemstatcost.txt) to a list of values.
     # We can do this once in the constructor, then we don't have to search through all the items every time.
