@@ -1,0 +1,128 @@
+index	set_id
+Civerb's Ward	0
+Civerb's Icon	1
+Civerb's Cudgel	2
+Hsarus' Iron Heel	3
+Hsarus' Iron Fist	4
+Hsarus' Iron Stay	5
+Cleglaw's Tooth	6
+Cleglaw's Claw	7
+Cleglaw's Pincers	8
+Iratha's Collar	9
+Iratha's Cuff	10
+Iratha's Coil	11
+Iratha's Cord	12
+Isenhart's Lightbrand	13
+Isenhart's Parry	14
+Isenhart's Case	15
+Isenhart's Horns	16
+Vidala's Barb	17
+Vidala's Fetlock	18
+Vidala's Ambush	19
+Vidala's Snare	20
+Milabrega's Orb	21
+Milabrega's Rod	22
+Milabrega's Diadem	23
+Milabrega's Robe	24
+Cathan's Rule	25
+Cathan's Mesh	26
+Cathan's Visage	27
+Cathan's Sigil	28
+Cathan's Seal	29
+Tancred's Crowbill	30
+Tancred's Spine	31
+Tancred's Hobnails	32
+Tancred's Weird	33
+Tancred's Skull	34
+Sigon's Gage	35
+Sigon's Visor	36
+Sigon's Shelter	37
+Sigon's Sabot	38
+Sigon's Wrap	39
+Sigon's Guard	40
+Infernal Cranium	41
+Infernal Torch	42
+Infernal Sign	43
+Berserker's Headgear	44
+Berserker's Hauberk	45
+Berserker's Hatchet	46
+Death's Hand	47
+Death's Guard	48
+Death's Touch	49
+Angelic Sickle	50
+Angelic Mantle	51
+Angelic Halo	52
+Angelic Wings	53
+Arctic Horn	54
+Arctic Furs	55
+Arctic Binding	56
+Arctic Mitts	57
+Arcanna's Sign	58
+Arcanna's Deathwand	59
+Arcanna's Head	60
+Arcanna's Flesh	61
+Natalya's Totem	62
+Natalya's Mark	63
+Natalya's Shadow	64
+Natalya's Soul	65
+Aldur's Stony Gaze	66
+Aldur's Deception	67
+Aldur's Gauntlet	68
+Aldur's Advance	69
+Immortal King's Will	70
+Immortal King's Soul Cage 	71
+Immortal King's Detail	72
+Immortal King's Forge	73
+Immortal King's Pillar	74
+Immortal King's Stone Crusher	75
+Tal Rasha's Fire-Spun Cloth	76
+Tal Rasha's Adjudication	77
+Tal Rasha's Lidless Eye	78
+Tal Rasha's Howling Wind	79
+Tal Rasha's Horadric Crest	80
+Griswold's Valor	81
+Griswold's Heart	82
+Griswolds's Redemption	83
+Griswold's Honor	84
+Trang-Oul's Guise	85
+Trang-Oul's Scales	86
+Trang-Oul's Wing	87
+Trang-Oul's Claws	88
+Trang-Oul's Girth	89
+M'avina's True Sight	90
+M'avina's Embrace	91
+M'avina's Icy Clutch	92
+M'avina's Tenet	93
+M'avina's Caster	94
+Telling of Beads	95
+Laying of Hands	96
+Rite of Passage	97
+Spiritual Custodian	98
+Credendum	99
+Dangoon's Teaching	100
+Heaven's Taebaek	101
+Haemosu's Adament	102
+Ondal's Almighty	103
+Guillaume's Face	104
+Wilhelm's Pride	105
+Magnus' Skin	106
+Wihtstan's Guard	107
+Hwanin's Splendor	108
+Hwanin's Refuge	109
+Hwanin's Seal	110
+Hwanin's Justice	111
+Sazabi's Cobalt Redeemer	112
+Sazabi's Ghost Liberator	113
+Sazabi's Mental Sheath	114
+Bul-Kathos' Sacred Charge	115
+Bul-Kathos' Tribal Guardian	116
+Cow King's Horns	117
+Cow King's Hide	118
+Cow King's Hoofs	119
+Naj's Puzzler	120
+Naj's Light Plate	121
+Naj's Circlet	122
+McAuley's Paragon	123
+McAuley's Riprap	124
+McAuley's Taboo	125
+McAuley's Superstition	126

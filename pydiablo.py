@@ -18,6 +18,9 @@ ch.setFormatter(formatter)
 logger.addHandler(fh)
 logger.addHandler(ch)
 
+class PydiabloError(Exception):
+    pass
+
 class D2Data(object):
     @staticmethod
     def filling_values():
@@ -136,6 +139,7 @@ class AnimData(object):
         return self.animdata_dict[key]
 
 class Item(object):
+
     # constants for interpreting json character data
     ITEM_LOCATION_STORED = 0
     ITEM_LOCATION_EQUIPPED = 1
@@ -150,12 +154,24 @@ class Item(object):
 
     ITEM_TYPE_ID_WEAPON = 3
 
+    ITEM_QUALITY_SET = 5
+
     # this is a bit ugly, but we need to know if any item is a charm to determine
     # if we should use the item or not
     CHARM_ITEM_TYPES = ['cm1', 'cm2', 'cm3']
 
+    properties = D2Data('data/global/excel/Properties.txt', 'code', usecols=range(30))
+    itemstatcost = D2Data('data/global/excel/ItemStatCost.txt', 'Stat')
+
     def __init__(self, itemdata):
         self.item = itemdata
+
+    @classmethod
+    def create_item(cls, itemdata):
+        if 'quality' in itemdata and itemdata['quality'] is not None:
+            if itemdata['quality'] == cls.ITEM_QUALITY_SET:
+                return SetItem(itemdata)
+        return cls(itemdata)
 
     def is_equipped(self):
         """Returns true if the given item is equipped."""
@@ -197,8 +213,8 @@ class Item(object):
     def attributes(self, attr_name):
         """Return an iterator for attributes associated with attr_name."""
         if attr_name in self.item and self.item[attr_name] is not None:
-            for stat in self.item[attr_name]:
-                yield stat
+            for attr in self.item[attr_name]:
+                yield attr
 
     def non_set_attributes(self):
         """Return an iterator for all non-set item attributes."""
@@ -210,6 +226,133 @@ class Item(object):
             for attribute in socketed_item.attributes('magic_attributes'):
                 yield attribute
 
+    def sets_key(self):
+        """Return the key for lookups in the Sets.txt file.
+
+        Returns None unless it's a set item."""
+        return None
+
+    def stat_ids_from_property(self, prop):
+        """Return the stat ids (ItemStatCost.txt) associated with the property (Properties.txt)."""
+        stats = []
+        for i in range(1,7): # 6 maximum stats per property
+            stat = self.properties.get_data(prop, 'stat{}'.format(i))
+            if stat.dtype != 'bool' and stat != '':
+                stats.append(stat)
+        # now look up the ids
+        stat_ids = []
+        for stat in stats:
+            stat_id = self.itemstatcost.get_data(stat, 'ID')
+            stat_ids.append(stat_id)
+        return stat_ids
+
+    def set_attributes(self, num_items):
+        """Return an empty iterator. Set items will override this method."""
+        return
+        yield
+
+
+class SetItem(Item):
+    # map the set_id from d2s parser to the index used by SetItems.txt
+    setitems2 = D2Data('data2/SetItems2.txt', 'set_id')
+    setitems = D2Data('data/global/excel/SetItems.txt', 'index')
+    sets = D2Data('data/global/excel/Sets.txt', 'index')
+
+    def __init__(self, itemdata):
+        Item.__init__(self, itemdata)
+        try:
+            self.set_index = self.setitems2.get_data(itemdata['set_id'], 'index')
+            logger.debug("Creating {} set item {}.".format(self.set_name(), self.set_index))
+        except KeyError as e:
+            logger.error("Set item by quality has no set_id. JSON dump: {}".format(itemdata))
+            raise
+
+    def setitems_key(self):
+        """Return the key for lookups in the SetItems.txt file."""
+        return self.set_index
+
+    def sets_key(self):
+        """Return the key for lookups in the Sets.txt file."""
+        return self.setitems.get_data(self.set_index, 'set')
+
+    def set_name(self):
+        """Return the name of the set."""
+        return self.sets.get_data(self.sets_key(), 'name')
+
+    def setitems_data(self, col):
+        """Get data from a column of SetItems.txt."""
+        return self.setitems.get_data(self.set_index, col)
+
+    def sets_data(self, col):
+        """Get data from a column of Sets.txt."""
+        return self.sets.get_data(self.sets_key(), col)
+
+    def all_set_attributes(self):
+        """Return an iterator for lists of set item attributes, active or not.
+
+        Set items have attributes organized as a list of lists. The inner lists
+        contain the actual attributes. The outer list is for groups of attributes.
+        These attributes are grouped because of the way set bonuses are applied.
+        The first group is applied with x many items, second group with y many, etc."""
+        for attr_list in self.attributes('set_attributes'):
+            yield attr_list
+
+    def set_attributes(self, num_items):
+        """Return an iterator for active set attributes."""
+        # first figure out if bonuses on this item depend on total items equipped or specific items equipped
+        # (Civerb's shield is the only one in the latter category)
+        if self.setitems_data('add_func') == 1:
+            # add the stats based on which other specific items are present
+            logger.error("Sets items with bonuses dependent on specific set items (e.g. Civerb's shield) are not"
+                         " yet supported. Bonuses will not be applied on {}".format(self.setitems_key()))
+        elif self.setitems_data('add_func') == 2:
+            # add the stats based on total number of unique items present
+            # first grab the set attributes iterator for the item. This is intentionally
+            # only initialized once, and not again in the inner loop. It should advance each
+            # time we match the exepcted stats from ItemStatCost with the attributes in the list.
+            set_attr_iter = self.all_set_attributes()
+            try:
+                for i in range(1, num_items):
+                    stat_ids = []
+                    for c in ['a','b']:
+                        propstr = 'aprop{}{}'.format(i,c)
+                        #parstr = 'apar{}{}'.format(i,c)
+                        #minstr = 'amin{}{}'.format(i,c)
+                        #maxstr = 'amax{}{}'.format(i,c)
+                        prop = self.setitems_data(propstr)
+                        #par = item.setitems_data(parstr)
+                        #min_ = item.setitems_data(minstr)
+                        #max_ = item.setitems_data(maxstr)
+                        # bool check is because an empty column has bool datatype
+                        # TODO: Figure out a better way to deal with this before it's all over the place
+                        if prop.dtype != 'bool' and prop != '':
+                            logger.debug("Found property {} to include on {}.".format(prop, self.setitems_key())
+                                       + " This property adds stats {}.".format(self.stat_ids_from_property(prop)))
+                            stat_ids += self.stat_ids_from_property(prop)
+                    # we need to find the attribute(s) in the d2s parser that matches the stat ids we look
+                    # up from the property to add. We could attempt to look up the stat values themselves
+                    # in the txt files, but this isn't the right way to do it. Some stat bonuses on items
+                    # are actually variable (see Civerb's shield), so we should respect the values in the
+                    # d2s file.
+                    if len(stat_ids) > 0:
+                        # above condition means there is a bonus we should apply, now we need to match it
+                        # to the d2s attributes
+                        for attr_list in set_attr_iter:
+                            tmp_map = {}
+                            Character.add_attributes_to_map(iter(attr_list), tmp_map)
+                            if set(tmp_map.keys()) == set(stat_ids):
+                                logger.debug("Attributes {} active on {}.".format(attr_list, self.setitems_key()))
+                                for attr in attr_list:
+                                    yield attr
+                                break
+                            else:
+                                raise PydiabloError("Attributes {} did not match expected stat ids {} on {}.".format(attr_list,
+                                    stat_ids, self.setitems_key()))
+            except PydiabloError as e:
+                logger.error("Problem matching the set bonuses from d2s to those expected"
+                             " by SetItems.txt ({}). Don't trust set bonuses on this item.".format(str(e)))
+                return
+        # if the value is 0 (empty), do nothing.
 
 class Character(object):
     animdata = AnimData('data2/animdata.txt')
@@ -244,9 +387,10 @@ class Character(object):
         self.header = self.d2s['header']
         self.attributes = self.d2s['attributes']
         self.skills = self.d2s['skills']
-        self.items = [Item(itemdata) for itemdata in self.d2s['items']]
+        self.items = [Item.create_item(itemdata) for itemdata in self.d2s['items']]
         self.corpse_items = self.d2s['corpse_items']
         self.merc_items = self.d2s['merc_items']
+        self.build_set_map()
         self.build_stat_maps()
 
     def name(self):
@@ -309,7 +453,7 @@ class Character(object):
         stat_map -- add stats to this map
 
         First, some terminology. Nokka's d2s parser gives 'attributes' for the items.
-        These 'attributes' are not quite consistent with the 'stats' in ItemStatCost.txt.
+        These 'attributes' are a little different than the 'stats' in ItemStatCost.txt.
         When referring to the stat as it exists in the JSON from the d2s parser, I will
         use the term 'attribute'. When referring to a stat consistent with ItemStatCost.txt,
         I will use the term 'stat'.
@@ -317,7 +461,7 @@ class Character(object):
         attr_iterator must yield a map with an id and values field and can
         be created with the generator methods in the Item class. These maps are
         expected to follow the format of nokka's d2s parser. When converting from
-        attribute to stat, we fix some inconsistencies, notably with combined stat ranges
+        attribute to stat, we change a few things, notably with combined stat ranges
         (min-max dmg) and with charges.
 
         The stat_map will contain all item stats, keyed by stat id (ItemStatCost.txt).
@@ -374,17 +518,43 @@ class Character(object):
                 mdict[mkey] = []
             mdict[mkey].append(attr['values'][-1])
 
+    def num_set_items(self, item):
+        """Return total number of active set items for the set item 'item'."""
+        if item.sets_key() is None: return 0
+        n = len(set([item_.setitems_key() for item_ in self.set_map[item.sets_key()]]))
+        logger.debug("Processing {} on {} with bonuses from {} items from the {} set.".format(item.setitems_key(), self.name(), n, item.sets_key()))
+        return n
+
     def build_stat_maps(self):
         """Construct the stat maps that will be used to perform O(1) lookup per stat."""
         self.primary_weapon_stats = {}
         self.secondary_weapon_stats = {}
         self.off_weapon_stats = {}
         for item in [self.get_primary_weapon()]:
-            if item is not None: self.add_attributes_to_map(item.non_set_attributes(), self.primary_weapon_stats)
+            if item is not None:
+                self.add_attributes_to_map(item.non_set_attributes(), self.primary_weapon_stats)
+                self.add_attributes_to_map(item.set_attributes(self.num_set_items(item)), self.primary_weapon_stats)
         for item in [self.get_secondary_weapon()]:
-            if item is not None: self.add_attributes_to_map(item.non_set_attributes(), self.secondary_weapon_stats)
+            if item is not None:
+                self.add_attributes_to_map(item.non_set_attributes(), self.secondary_weapon_stats)
+                self.add_attributes_to_map(item.set_attributes(self.num_set_items(item)), self.secondary_weapon_stats)
         for item in self.get_active_non_weapons():
-            if item is not None: self.add_attributes_to_map(item.non_set_attributes(), self.off_weapon_stats)
+            if item is not None:
+                self.add_attributes_to_map(item.non_set_attributes(), self.off_weapon_stats)
+                self.add_attributes_to_map(item.set_attributes(self.num_set_items(item)), self.off_weapon_stats)
+
+    def build_set_map(self):
+        """Build a map of the character's set items, keyed by index from Sets.txt.
+
+        Each element of the dict is a list of set items.
+        """
+        self.set_map = {}
+        for item in self.get_active_items():
+            if item.sets_key() is not None:
+                if item.sets_key() not in self.set_map:
+                    self.set_map[item.sets_key()] = []
+                self.set_map[item.sets_key()].append(item)
+
 
     # TODO: Best way to do this is probably to build a map of stat ids (itemstatcost.txt) to a list of values.
     # We can do this once in the constructor, then we don't have to search through all the items every time.
