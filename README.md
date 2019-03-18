@@ -58,5 +58,21 @@ d2.write_bp_table(sys.stdout, d2.Paladin.zeal_duration, '2HS', 100, 37, 10, WIAS
 d2.write_bp_table(sys.stdout, d2.Act2Merc.jab_duration, 'HTH', 100, 0, -10)
 ```
 
+### character data import
+This feature is brand new, and there's not a lot of interesting stuff you can do with it yet.
+
+#### from slashdiablo or nokka's d2s parser (https://github.com/nokka/d2s)
+```char_name = 'netease'
+char = d2.chardata_from_slash(char_name)
+# if you want to import another d2s file parsed by nokka's d2s
+# char_json = ... # from d2s parser
+# char = d2.create_from_json(char_json)
+
+#print some stuff
+print(char.primary_weapon_stats)
+print(char.secondary_weapon_stats)
+print(char.off_weapon_stats)
+```
+
 ## license
 See the LICENSE file for license details on pydiablo.py. The files in data and data2 are derivative of Diablo 2 game data; the license in the LICENSE file does not apply.
