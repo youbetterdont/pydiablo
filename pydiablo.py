@@ -162,6 +162,7 @@ class Item(object):
 
     properties = D2Data('data/global/excel/Properties.txt', 'code', usecols=range(30))
     itemstatcost = D2Data('data/global/excel/ItemStatCost.txt', 'Stat')
+    itemstatcostid = D2Data('data/global/excel/ItemStatCost.txt', 'ID', usecols=[0,1]);
 
     def __init__(self, itemdata):
         self.item = itemdata
@@ -232,37 +233,117 @@ class Item(object):
         Returns None unless it's a set item."""
         return None
 
-    def stat_ids_from_property(self, prop):
+    @classmethod
+    def stat_ids_from_property(cls, prop):
         """Return the stat ids (ItemStatCost.txt) associated with the property (Properties.txt)."""
         stats = []
-        for i in range(1,7): # 6 maximum stats per property
-            stat = self.properties.get_data(prop, 'stat{}'.format(i))
+        for i in range(1,8): # 7 maximum stats per property
+            stat = cls.properties.get_data(prop, 'stat{}'.format(i))
             if stat.dtype != 'bool' and stat != '':
                 stats.append(stat)
         # now look up the ids
         stat_ids = []
         for stat in stats:
-            stat_id = self.itemstatcost.get_data(stat, 'ID')
+            stat_id = cls.itemstatcost.get_data(stat, 'ID')
             stat_ids.append(stat_id)
         return stat_ids
+
+    @classmethod
+    def property_functions(cls, prop):
+        """Yield a map containing 'set', 'val', 'func', and 'stat' fields for each stat associated with the property."""
+        for i in range(1,8): # 7 maximum stats per property
+            stat = cls.properties.get_data(prop, 'stat{}'.format(i))
+            #stat_id = cls.itemstatcost.get_data(stat, 'ID')
+            set_ = cls.properties.get_data(prop, 'set{}'.format(i))
+            val = cls.properties.get_data(prop, 'val{}'.format(i))
+            func = cls.properties.get_data(prop, 'func{}'.format(i))
+            if func.dtype == 'bool' or func == -1:
+                return # no additional stats to yield
+            yield {'stat': stat, 'set_': set_, 'val': val, 'func': func}
 
     def set_attributes(self, num_items):
         """Return an empty iterator. Set items will override this method."""
         return
         yield
 
+    @classmethod
+    def create_stat(cls, func, stat, set_, val, param, min_, max_, rand=False):
+        """Return a newly created stat as a dict with 'stat_id' and 'values' fields.
+
+        The values are ordered consistenly with the item stat order in the d2s file.
+        """
+        if rand:
+            logger.error("Random generation of stats not yet supported.")
+        # The funciton mapping below was reverse engineered from vanilla game data
+        # and by comparing to the item stat order in the d2s file (easy to see in nokka's parser).
+        # It may not be completely accurate. Surely there are some differences between
+        # the otherwise identical functions.
+        # TODO: func3 is same as 1, but it should reuse the func1 rolls.
+        if func in [1, 3, 8]:
+            #stat_id = cls.itemstatcost.get_data(stat, 'ID')
+            return {'stat': stat, 'values': [(min_+max_)//2]}
+        if func==21:
+            #stat_id = cls.itemstatcost.get_data(stat, 'ID')
+            return {'stat': stat, 'values': [val, (min_+max_)//2]}
+        else:
+            return {}
+
+class Set():
+    sets = D2Data('data/global/excel/Sets.txt', 'index')
+
+    def __init__(self, set_id):
+        self.set_id = set_id
+        logger.debug("{} is a {} piece set.".format(self.set_name(), self.num_items()))
+
+    def num_items(self):
+        return np.sum(SetItem.setitems.data['set'] == self.set_id)
+
+    def sets_data(self, col):
+        """Get data from a column of Sets.txt."""
+        return self.sets.get_data(self.set_id, col)
+
+    def set_name(self):
+        """Return the name of the set."""
+        return self.sets.get_data(self.set_id, 'name')
+
+    def _attributes(self, prefix, suffix, start, stop):
+        # partial set bonuses first
+        for i in range(start, stop):
+            for c in suffix:
+                propstr = '{}Code{}{}'.format(prefix,i,c)
+                parstr = '{}Param{}{}'.format(prefix,i,c)
+                minstr = '{}Min{}{}'.format(prefix,i,c)
+                maxstr = '{}Max{}{}'.format(prefix,i,c)
+                prop = self.sets_data(propstr)
+                par = self.sets_data(parstr)
+                min_ = self.sets_data(minstr)
+                max_ = self.sets_data(maxstr)
+                # bool check is because an empty column has bool datatype
+                # TODO: Figure out a better way to deal with this before it's all over the place
+                if prop.dtype != 'bool' and prop != '':
+                    logger.debug("Found property {} to include from {} set.".format(prop, self.set_name())
+                            + " This property calls funcions {}.".format(list(Item.property_functions(prop)))
+                               + " Arguments to property function: param={} min={} max={}".format(par, min_, max_))
+                    for property_function in Item.property_functions(prop):
+                        stat = Item.create_stat(**property_function, param=par, min_=min_, max_=max_)
+                        logger.debug("Created stat {}.".format(stat))
+
+    def attributes(self, num_items):
+        self._attributes('P', ['a','b'], 2, num_items+1)
+        if num_items == self.num_items():
+            self._attributes('F', [''], 1, 9)
 
 class SetItem(Item):
     # map the set_id from d2s parser to the index used by SetItems.txt
     setitems2 = D2Data('data2/SetItems2.txt', 'set_id')
     setitems = D2Data('data/global/excel/SetItems.txt', 'index')
-    sets = D2Data('data/global/excel/Sets.txt', 'index')
 
     def __init__(self, itemdata):
         Item.__init__(self, itemdata)
         try:
             self.set_index = self.setitems2.get_data(itemdata['set_id'], 'index')
-            logger.debug("Creating {} set item {}.".format(self.set_name(), self.set_index))
+            #self.set = Set(self.sets_key())
+            logger.debug("Creating {} set item {}.".format(self.sets_key(), self.set_index))
         except KeyError as e:
             logger.error("Set item by quality has no set_id. JSON dump: {}".format(itemdata))
             raise
@@ -275,17 +356,9 @@ class SetItem(Item):
         """Return the key for lookups in the Sets.txt file."""
         return self.setitems.get_data(self.set_index, 'set')
 
-    def set_name(self):
-        """Return the name of the set."""
-        return self.sets.get_data(self.sets_key(), 'name')
-
     def setitems_data(self, col):
         """Get data from a column of SetItems.txt."""
         return self.setitems.get_data(self.set_index, col)
-
-    def sets_data(self, col):
-        """Get data from a column of Sets.txt."""
-        return self.sets.get_data(self.sets_key(), col)
 
     def all_set_attributes(self):
         """Return an iterator for lists of set item attributes, active or not.
@@ -340,7 +413,7 @@ class SetItem(Item):
                         for attr_list in set_attr_iter:
                             tmp_map = {}
                             Character.add_attributes_to_map(iter(attr_list), tmp_map)
-                            if set(tmp_map.keys()) == set(stat_ids):
+                            if set([self.itemstatcost.get_data(key, 'ID') for key in tmp_map.keys()]) == set(stat_ids):
                                 logger.debug("Attributes {} active on {}.".format(attr_list, self.setitems_key()))
                                 for attr in attr_list:
                                     yield attr
@@ -445,6 +518,37 @@ class Character(object):
         return items
 
     @staticmethod
+    def attribute_to_stats(attr):
+        # first handle some special cases where the d2s parser
+        # combined some stats into ranges.
+        if attr['id'] in [17, 48, 50, 52, 54, 57]:
+            stats = []
+            for i, value in enumerate(attr['values']):
+                stat = Item.itemstatcostid.get_data(attr['id']+i, 'Stat')
+                stats.append({'stat': stat, 'values': [value]})
+            return stats
+
+        # next deal with the properties giving charges.
+        if attr['id'] in range(204,214):
+            # override the stat reference to point to a new dict that we will
+            # modify so that charges fits in better to our scheme. We recombine
+            # the current and maximum charges into one number.
+            new_attr = {}
+            new_attr['id'] = attr['id']
+            try:
+                # MSB is maximum charges, LSB is current charges
+                new_attr['values'] = [attr['values'][0], attr['values'][1],
+                                      attr['values'][2] + 2**8*attr['values'][3]]
+            except IndexError as e:
+                logger.error("Unexpected values field in item charges attribute. JSON dump: {}".format(attr))
+                raise
+            attr = new_attr
+
+        # next handle the general case.
+        stat = Item.itemstatcostid.get_data(attr['id'], 'Stat')
+        return [{'stat': stat, 'values': attr['values']}]
+
+    @staticmethod
     def add_attributes_to_map(attr_iterator, stat_map):
         """Add attributes from the item to the stat map.
 
@@ -480,43 +584,17 @@ class Character(object):
         there are 10 current charges (LSB) and 10 max (MSB): 2570 = 0x0A0A.
         """
         for attr in attr_iterator:
-            # first handle some special cases where the d2s parser
-            # combined some stats into ranges.
-            if attr['id'] in [17, 48, 50, 52, 54, 57]:
-                for i, value in enumerate(attr['values']):
-                    if attr['id']+i not in stat_map:
-                        stat_map[attr['id']+i] = []
-                    stat_map[attr['id']+i].append(value)
-                continue
-
-            # next deal with the properties giving charges.
-            if attr['id'] in range(204,214):
-                # override the stat reference to point to a new dict that we will
-                # modify so that charges fits in better to our scheme. We recombine
-                # the current and maximum charges into one number.
-                new_attr = {}
-                new_attr['id'] = attr['id']
-                try:
-                    # MSB is maximum charges, LSB is current charges
-                    new_attr['values'] = [attr['values'][0], attr['values'][1],
-                                          attr['values'][2] + 2**8*attr['values'][3]]
-                except IndexError as e:
-                    logger.error("Unexpected values field in item charges attribute. JSON dump: {}".format(attr))
-                    continue
-                attr = new_attr
-
-            # next handle the general case. when parameters are present,
-            # these are added as keys to inner dictionaries
-            mdict = stat_map
-            mkey = attr['id']
-            for value in attr['values'][:-1][::-1]:
+            for stat in Character.attribute_to_stats(attr):
+                mdict = stat_map
+                mkey = stat['stat']
+                for value in attr['values'][:-1][::-1]:
+                    if mkey not in mdict:
+                        mdict[mkey] = {}
+                    mdict = mdict[mkey]
+                    mkey = value
                 if mkey not in mdict:
-                    mdict[mkey] = {}
-                mdict = mdict[mkey]
-                mkey = value
-            if mkey not in mdict:
-                mdict[mkey] = []
-            mdict[mkey].append(attr['values'][-1])
+                    mdict[mkey] = []
+                mdict[mkey].append(attr['values'][-1])
 
     def num_set_items(self, item):
         """Return total number of active set items for the set item 'item'."""
