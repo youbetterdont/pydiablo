@@ -40,7 +40,7 @@ Lord De Seis	108
 Grand Vizier of Chaos	108
 The Cow King	39
 Corpsefire	8
-The Feature Creep	
+The Feature Creep	107
 Expansion	
 Siege Boss	110
 Ancient Barbarian 1	120

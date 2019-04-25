@@ -807,6 +807,7 @@ class Amazon(Character):
 
 class Act1Merc(Character):
     ctype = 'RG'
+    aidelay = 2
 
 class Act2Merc(Character):
     ctype = 'GU'
@@ -943,9 +944,10 @@ class Levels(D2Data):
                 if mon not in monmap:
                     monmap[mon] = []
                 area_id = self.data['Id'][i]
-                monmap[mon].append(area_id)
-                # now add the minions that can spawn this this monster
-                self.add_minions(monmap, mon, area_id)
+                if area_id >= 0:
+                    monmap[mon].append(area_id)
+                    # now add the minions that can spawn this this monster
+                    self.add_minions(monmap, mon, area_id)
         # now check super unique locations. some monsters only spawn
         # as super uniques or minions of super uniques
         mons = self.superuniques.data['Class']
@@ -961,10 +963,10 @@ class Levels(D2Data):
             if area_id >= 0:
                 #print mon, area_id
                 monmap[mon].append(area_id)
-            # now check for minions
-            # TODO: Consider adding special tag to minions to indicate
-            # they only spawn as superunique minions
-            self.add_minions(monmap, mon, area_id)
+                # now check for minions
+                # TODO: Consider adding special tag to minions to indicate
+                # they only spawn as superunique minions
+                self.add_minions(monmap, mon, area_id)
         for key, value in monmap.items():
             monmap[key] = sorted(list(set(monmap[key])))
 
@@ -1052,6 +1054,13 @@ class Monster(object):
 
     #def damage_resist(self):
     #    return self.base_damage_resist() + self.curse.damage_resist()
+
+    @classmethod
+    def monster_ids(cls):
+        """Yield monster_ids from monstats.txt in the order in which they are listed."""
+        monster_ids = cls.monstats.data['Id']
+        for monster_id in monster_ids:
+            yield monster_id
 
     # create and return a type given the monster id, difficulty, and area id. If no area id is given,
     # use the area id that will result in the highest mlvl.
