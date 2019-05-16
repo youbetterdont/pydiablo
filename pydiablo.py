@@ -57,7 +57,7 @@ def anim_speed(anim_duration, aidelay=0):
     avg_duration = 1.0*(sum(anim_duration)+aidelay)/len(anim_duration)
     return 25.0/avg_duration
 
-def breakpoints(anim_duration_function, wtype, AnimRate, SIAS, WSM, WIAS=0):
+def breakpoints(anim_duration_function, wtype, AnimRate, SIAS, WSM, WIAS=0, **kwargs):
     meias = np.array(range(120))
     mias = np.ceil(meias*120./(120-meias)).astype('int')-WIAS
     ias_list = list(mias[mias >= 0])
@@ -65,7 +65,7 @@ def breakpoints(anim_duration_function, wtype, AnimRate, SIAS, WSM, WIAS=0):
     total_dur_prev = 0
     bps = []
     for ias in ias_list:
-        total_dur = sum(anim_duration_function(wtype, AnimRate, SIAS, WSM, ias, WIAS=WIAS))
+        total_dur = sum(anim_duration_function(wtype, AnimRate, SIAS, WSM, ias, WIAS=WIAS, **kwargs))
         if total_dur != total_dur_prev:
             bps.append(ias)
         total_dur_prev = total_dur
@@ -79,7 +79,7 @@ def action_flag_position(animdata):
 
 #get_breakpoints(0,0,0,0,0)
 
-def write_bp_table(iostream, anim_duration_function, wtype, AnimRate, SIAS, WSM, WIAS=0):
+def write_bp_table(iostream, anim_duration_function, wtype, AnimRate, SIAS, WSM, WIAS=0, **kwargs):
     iostream.write('Class: ' + anim_duration_function.__self__.__name__ + '\n')
     iostream.write('Animation: ' + anim_duration_function.__name__.split('_')[0] + '\n')
     iostream.write('Weapon: ' + wtype + '\n')
@@ -95,11 +95,11 @@ def write_bp_table(iostream, anim_duration_function, wtype, AnimRate, SIAS, WSM,
     header = ['ias']
     header += ['eias']
     first_run = True
-    bps = breakpoints(anim_duration_function, wtype, AnimRate, SIAS, WSM, WIAS=WIAS)
+    bps = breakpoints(anim_duration_function, wtype, AnimRate, SIAS, WSM, WIAS=WIAS, **kwargs)
     aidelay = anim_duration_function.__self__.aidelay
     for bp in bps:
         #for anim_duration_function in anim_duration_functions:
-        mlist = anim_duration_function(wtype, AnimRate, SIAS, WSM, bp, WIAS=WIAS)
+        mlist = anim_duration_function(wtype, AnimRate, SIAS, WSM, bp, WIAS=WIAS, **kwargs)
         if first_run:
             header += ['atk{:d}'.format(x) for x,y in enumerate(mlist)]
             if aidelay:
@@ -727,8 +727,9 @@ class Transform(object):
         delay = np.floor(256.*frames_char / np.floor((100.+WIAS-WSM) * char_speed/100.))
         return int(np.floor(256.*frames_neutral / delay))
 
+    # TODO: figure out what to do with first argument here
     @classmethod
-    def anim_duration(cls, AnimName, wtype, AnimRate, SIAS, WSM, IASItem, WIAS=0):
+    def anim_duration(cls, AnimName, wtype, AnimRate, SIAS, WSM, IASItem, WIAS=0, first=False):
         animdata = cls.get_xform_animdata(AnimName)
         animlength = animdata[0]
         animspeed = cls.modified_anim_speed(AnimName, wtype, WSM, WIAS)
@@ -807,11 +808,18 @@ class Amazon(Character):
                 #[anim_duration(16, 256, AnimRate, SIAS, WSM, IASItem, WIAS=WIAS, rollback=100)]
 
     @classmethod
-    def fend_duration(cls, wtype, AnimRate, SIAS, WSM, IASItem, WIAS=0):
+    def fend_duration(cls, wtype, AnimRate, SIAS, WSM, IASItem, WIAS=0, ntargets=5):
         # rollback values below were chosen to match german calculator. not all cases were tested though
-        return [cls.foreswing_duration('A1', wtype, AnimRate, SIAS, WSM, IASItem, WIAS=WIAS, first=True)] +\
-                [cls.foreswing_duration('A1', wtype, AnimRate, SIAS, WSM, IASItem, WIAS=WIAS, rollback=60)]*8 +\
-                [cls.anim_duration('A1', wtype, AnimRate, SIAS, WSM, IASItem, WIAS=WIAS, rollback=75)]
+        first = cls.foreswing_duration('A1', wtype, AnimRate, SIAS, WSM, IASItem, WIAS=WIAS, first=True)
+        follow = cls.foreswing_duration('A1', wtype, AnimRate, SIAS, WSM, IASItem, WIAS=WIAS, rollback=60)
+        last = cls.anim_duration('A1', wtype, AnimRate, SIAS, WSM, IASItem, WIAS=WIAS, rollback=75)
+        if ntargets==1:
+            return [first+last-follow]
+        else:
+            return [first] + [follow]*max(0,ntargets-2) + [last]
+        #return [cls.foreswing_duration('A1', wtype, AnimRate, SIAS, WSM, IASItem, WIAS=WIAS, first=True)] +\
+        #        [cls.foreswing_duration('A1', wtype, AnimRate, SIAS, WSM, IASItem, WIAS=WIAS, rollback=60)]*8 +\
+        #        [cls.anim_duration('A1', wtype, AnimRate, SIAS, WSM, IASItem, WIAS=WIAS, rollback=75)]
 
 class Act1Merc(Character):
     ctype = 'RG'
