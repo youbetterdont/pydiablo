@@ -645,9 +645,11 @@ class Character(object):
         return cls.animdata.get_data(animkey)
 
     @classmethod
-    def anim_duration(cls, AnimName, wtype, AnimRate, SIAS, WSM, IASItem, WIAS=0, rollback=100):
+    def anim_duration(cls, AnimName, wtype, AnimRate, SIAS, WSM, IASItem, WIAS=0, rollback=100, first=False):
         animdata = cls.get_char_animdata(AnimName, wtype)
-        return anim_duration(animdata[0], animdata[1], AnimRate, SIAS, WSM, IASItem, WIAS=WIAS, rollback=rollback)
+        if first: startframes = cls.startframes[wtype]
+        else: startframes = 0
+        return anim_duration(animdata[0]-startframes, animdata[1], AnimRate, SIAS, WSM, IASItem, WIAS=WIAS, rollback=rollback)
 
     # the length of the animation used for serial attacks, like zeal or fury
     @classmethod
@@ -681,9 +683,9 @@ class Character(object):
 
     @classmethod
     def attack_duration(cls, wtype, AnimRate, SIAS, WSM, IASItem, WIAS=0):
-        a1_dur = cls.anim_duration('A1', wtype, AnimRate, SIAS, WSM, IASItem, WIAS=WIAS)
+        a1_dur = cls.anim_duration('A1', wtype, AnimRate, SIAS, WSM, IASItem, WIAS=WIAS, first=True)
         try:
-            a2_dur = cls.anim_duration('A2', wtype, AnimRate, SIAS, WSM, IASItem, WIAS=WIAS)
+            a2_dur = cls.anim_duration('A2', wtype, AnimRate, SIAS, WSM, IASItem, WIAS=WIAS, first=True)
         except KeyError as e:
             return [a1_dur]
         return [a1_dur, a2_dur]
@@ -771,7 +773,7 @@ class Sorceress(Character):
                    '1HT': 2,
                    'STF': 2,
                    '2HS': 2,
-                   '2HT': 0,
+                   '2HT': 2, # see comment below on amazon start frames
                    'XBW': 0}
 
 class Amazon(Character):
@@ -782,7 +784,7 @@ class Amazon(Character):
                    '1HT': 2,
                    'STF': 2,
                    '2HS': 2,
-                   '2HT': 0,
+                   '2HT': 2, # d2 factoids says this is 0, but results only agree with german calc if this is 2
                    'XBW': 0}
 
     # strafe is not quite matching the german calc or the amazon basin tables for crossbows (which dont agree themselves).
@@ -804,6 +806,12 @@ class Amazon(Character):
                 [max(cls.anim_duration('A1', wtype, AnimRate, SIAS, WSM, IASItem, WIAS=WIAS, rollback=78),7)]
                 #[anim_duration(16, 256, AnimRate, SIAS, WSM, IASItem, WIAS=WIAS, rollback=100)]
 
+    @classmethod
+    def fend_duration(cls, wtype, AnimRate, SIAS, WSM, IASItem, WIAS=0):
+        # rollback values below were chosen to match german calculator. not all cases were tested though
+        return [cls.foreswing_duration('A1', wtype, AnimRate, SIAS, WSM, IASItem, WIAS=WIAS, first=True)] +\
+                [cls.foreswing_duration('A1', wtype, AnimRate, SIAS, WSM, IASItem, WIAS=WIAS, rollback=60)]*8 +\
+                [cls.anim_duration('A1', wtype, AnimRate, SIAS, WSM, IASItem, WIAS=WIAS, rollback=75)]
 
 class Act1Merc(Character):
     ctype = 'RG'
