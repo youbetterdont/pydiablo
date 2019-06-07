@@ -17,11 +17,11 @@ import pydiablo as d2
 # baalhighpriest: wave3
 # baalminion1: wave5
 monster_id = 'doomknight1'
-difficulty = d2.HELL
+difficulty = d2.monster.HELL
 # write the area table (if we want to choose a specific area)
-d2.Monster.levels.write_area_table(sys.stdout, monster_id, difficulty)
+d2.monster.Monster.levels.write_area_table(sys.stdout, monster_id, difficulty)
 # with no specific area chosen, it defaults to highest level available
-MonsterType = d2.MinionMonster.create_monster_type(monster_id, difficulty)
+MonsterType = d2.monster.MinionMonster.create_monster_type(monster_id, difficulty)
 print('========')
 print('Class name: ' + MonsterType.__name__)
 print('Areas: ' + str(MonsterType.mlvl_specific_area_names()))
@@ -49,13 +49,13 @@ print('experience: ' + str(monster.experience()))
 ### weapon speed
 ```python
 import sys
-import pydiablo as d2
+from pydiablo.character import *
 
 # write a few selected ias breakpoint tables
-d2.write_bp_table(sys.stdout, d2.Amazon.strafe_duration, 'BOW', 100, 0, 10)
-d2.write_bp_table(sys.stdout, d2.WolfDruid.fury_duration, 'STF', 100, 68, 10, WIAS=90)
-d2.write_bp_table(sys.stdout, d2.Paladin.zeal_duration, '2HS', 100, 37, 10, WIAS=0)
-d2.write_bp_table(sys.stdout, d2.Act2Merc.jab_duration, 'HTH', 100, 0, -10)
+write_bp_table(sys.stdout, Amazon.strafe_duration, 'BOW', 100, 0, 10)
+write_bp_table(sys.stdout, WolfDruid.fury_duration, 'STF', 100, 68, 10, WIAS=90)
+write_bp_table(sys.stdout, Paladin.zeal_duration, '2HS', 100, 37, 10, WIAS=0)
+write_bp_table(sys.stdout, Act2Merc.jab_duration, 'HTH', 100, 0, -10)
 ```
 
 ### character data import
@@ -63,11 +63,13 @@ This feature is brand new, and there's not a lot of interesting stuff you can do
 
 #### from slashdiablo or nokka's d2s parser (https://github.com/nokka/d2s)
 ```python
+from pydiablo.character import *
+
 char_name = 'netease'
-char = d2.chardata_from_slash(char_name)
+char = chardata_from_slash(char_name)
 # if you want to import another d2s file parsed by nokka's d2s
 # char_json = ... # from d2s parser
-# char = d2.create_from_json(char_json)
+# char = create_from_json(char_json)
 
 #print some stuff
 print(char.primary_weapon_stats)

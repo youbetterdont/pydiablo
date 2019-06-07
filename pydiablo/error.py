@@ -1,0 +1,2 @@
+class PydiabloError(Exception):
+    pass
