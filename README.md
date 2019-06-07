@@ -49,13 +49,13 @@ print('experience: ' + str(monster.experience()))
 ### weapon speed
 ```python
 import sys
-from pydiablo.character import *
+import pydiablo as d2
 
 # write a few selected ias breakpoint tables
-write_bp_table(sys.stdout, Amazon.strafe_duration, 'BOW', 100, 0, 10)
-write_bp_table(sys.stdout, WolfDruid.fury_duration, 'STF', 100, 68, 10, WIAS=90)
-write_bp_table(sys.stdout, Paladin.zeal_duration, '2HS', 100, 37, 10, WIAS=0)
-write_bp_table(sys.stdout, Act2Merc.jab_duration, 'HTH', 100, 0, -10)
+d2.char.write_bp_table(sys.stdout, d2.char.Amazon.strafe_duration, 'BOW', 100, 0, 10)
+d2.char.write_bp_table(sys.stdout, d2.char.WolfDruid.fury_duration, 'STF', 100, 68, 10, WIAS=90)
+d2.char.write_bp_table(sys.stdout, d2.char.Paladin.zeal_duration, '2HS', 100, 37, 10, WIAS=0)
+d2.char.write_bp_table(sys.stdout, d2.char.Act2Merc.jab_duration, 'HTH', 100, 0, -10)
 ```
 
 ### character data import
@@ -63,10 +63,10 @@ This feature is brand new, and there's not a lot of interesting stuff you can do
 
 #### from slashdiablo or nokka's d2s parser (https://github.com/nokka/d2s)
 ```python
-from pydiablo.character import *
+import pydiablo as d2
 
 char_name = 'netease'
-char = chardata_from_slash(char_name)
+char = d2.char.chardata_from_slash(char_name)
 # if you want to import another d2s file parsed by nokka's d2s
 # char_json = ... # from d2s parser
 # char = create_from_json(char_json)

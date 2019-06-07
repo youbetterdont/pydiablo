@@ -1,1 +1,1 @@
-import pydiablo.monster, pydiablo.character
+import pydiablo.monster, pydiablo.char
