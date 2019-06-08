@@ -78,4 +78,4 @@ print(char.off_weapon_stats)
 ```
 
 ## license
-See the LICENSE file for license details on pydiablo.py. The files in data and data2 are derivative of Diablo 2 game data; the license in the LICENSE file does not apply.
+See the LICENSE file for license details on source files contained in pydiablo. The files in data and data2 are derivative of Diablo 2 game data; the license in the LICENSE file does not apply.
