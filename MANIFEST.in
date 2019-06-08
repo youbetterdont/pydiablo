@@ -1,0 +1,2 @@
+include pydiablo/data/global/excel/*.txt
+include pydiablo/data2/*.txt
