@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="pydiablo-youbetterdont",
-    version="0.0.1",
+    version="0.0.2",
     author="youbetterdont",
     #author_email="author@example.com",
     description="A collection of Diablo 2 utilities.",
