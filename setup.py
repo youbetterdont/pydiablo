@@ -4,8 +4,8 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="pydiablo-youbetterdont",
-    version="0.0.2",
+    name="pydiablo",
+    version="0.0.3",
     author="youbetterdont",
     #author_email="author@example.com",
     description="A collection of Diablo 2 utilities.",
