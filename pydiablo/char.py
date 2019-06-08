@@ -103,8 +103,8 @@ def write_bp_table(iostream, anim_duration_function, wtype, AnimRate, SIAS, WSM,
 
 class AnimData(object):
     def __init__(self, filename):
-        animdata_keys = np.genfromtxt(filename, delimiter='\t', names=True, dtype=None, usecols=0, encoding=None)['CofName']
-        animdata = np.genfromtxt(filename, delimiter='\t', skip_header=1, dtype='int', encoding=None)
+        animdata_keys = np.genfromtxt(D2Data.DATA_PATH + filename, delimiter='\t', names=True, dtype=None, usecols=0, encoding=None)['CofName']
+        animdata = np.genfromtxt(D2Data.DATA_PATH + filename, delimiter='\t', skip_header=1, dtype='int', encoding=None)
         self.animdata_dict = dict(zip(animdata_keys, [row[1:] for row in animdata]))
 
     def get_data(self, key):
