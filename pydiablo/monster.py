@@ -1,4 +1,5 @@
 from pydiablo.d2data import D2Data
+import bisect
 
 # This should probably be an enum, but it's more convenient this way
 NORMAL = ''
@@ -150,6 +151,56 @@ class Levels(D2Data):
     def area_level(self, area_id, difficulty):
         return self.get_data(area_id, 'MonLvl'+str(self.DIFFMAP[difficulty])+'Ex')
 
+class TreasureClassEx(D2Data):
+    @staticmethod
+    def filling_values():
+        fv = {}
+        difficulties = ('', 'N', 'H')
+        for difficulty in difficulties:
+            item_cols = ['Item{}'.format(x) for x in range(1,11)]
+            prob_cols = ['Prob{}'.format(x) for x in range(1,11)] + ['NoDrop']
+            mod_cols = ['Unique', 'Set', 'Rare', 'Magic']
+            for col in item_cols:
+                fv[col] = ''
+            for col in prob_cols+mod_cols:
+                fv[col] = 0
+        return fv
+
+    def __init__(self, filename):
+        D2Data.__init__(self, filename, 'Treasure_Class')
+        self.group_map = {}
+        for tc in self.data['Treasure_Class']:
+            if tc:
+                group = self.get_data(tc, 'group')
+                if group > 0:
+                    if group not in self.group_map:
+                        self.group_map[group] = []
+                    self.group_map[group].append({'Treasure_Class': tc, 'level': self.get_data(tc, 'level')})
+        # make sure each group list is sorted by level
+        for group, tcs in self.group_map.items():
+            tcs.sort(key=lambda x: x['level'])
+
+    def get_upgrade(self, base_tc, mlvl):
+        """
+        Return the upgraded TC given the base treasure class and the monster level.
+
+        This doesn't handle group 18 correctly.
+        """
+        group = self.get_data(base_tc, 'group')
+        base_level = self.get_data(base_tc, 'level')
+        if base_level > mlvl:
+            return base_tc
+        if group > 0:
+            tcs = self.group_map[group]
+            levels = [tc['level'] for tc in tcs]
+            i = bisect.bisect_right(levels, mlvl)
+            if i:
+                return tcs[i-1]['Treasure_Class']
+            raise ValueError
+        else:
+            return base_tc
+
+
 class Monster(object):
     mlvl_bonus = 0
     exp_bonus = 1
@@ -160,7 +211,9 @@ class Monster(object):
     superuniques = SuperUniques('data/global/excel/SuperUniques.txt')
     superuniques2 = SuperUniques('data2/SuperUniques2.txt')
     levels = Levels('data/global/excel/Levels.txt', monstats, superuniques, superuniques2)
+    tcex = TreasureClassEx('data/global/excel/TreasureClassEx.txt')
     mumod_const = MonUModConstants('data/global/excel/monumod.txt')
+    tc_id = 1 # used for TC lookup. 1 = normal, 2 = champ, 3 = unique
     # map monstats stats to monlvl stats, assuming ladder or single player
     STATMAP = {'maxHP' : 'LHP', 'minHP': 'LHP', # capitalization typo (?) for normal difficulty
                'MaxHP' : 'LHP', 'MinHP': 'LHP',
@@ -277,6 +330,19 @@ class Monster(object):
             return base*ratio//100
 
     @classmethod
+    def treasure_class(cls):
+        """
+        Return the treasure class of the monster type, accounting for upgrades.
+
+        Quest drops are not handled yet.
+        """
+        base_tc = cls.monstats.get_data(cls.monster_id, 'TreasureClass{}'.format(cls.tc_id)+cls.difficulty)
+        if cls.difficulty != NORMAL:
+            return cls.tcex.get_upgrade(base_tc, cls.mlvl)
+        else:
+            return base_tc
+
+    @classmethod
     def base_hp(cls):
         stat_strs = ('minHP', 'maxHP') if cls.difficulty==NORMAL else ('MinHP', 'MaxHP')
         return tuple(map(lambda s: cls.ratioed_stat(s)*(100+cls.hp_bonus())//100, stat_strs))
@@ -343,6 +409,7 @@ for key, val in MONSTER_RATIO_NAMES.items():
 class UniqueMonster(Monster):
     mlvl_bonus = UNIQUE_MONSTER_MLVL_BONUS
     exp_bonus = UNIQUE_MONSTER_EXP_BONUS
+    tc_id = 3
 
     @classmethod
     def hp_bonus(cls):
@@ -359,6 +426,7 @@ class MinionMonster(Monster):
 class ChampionMonster(Monster):
     mlvl_bonus = CHAMPION_MONSTER_MLVL_BONUS
     exp_bonus = CHAMPION_MONSTER_EXP_BONUS
+    tc_id = 2
 
     @classmethod
     def hp_bonus(cls):
